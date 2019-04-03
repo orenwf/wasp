@@ -1,24 +1,3 @@
-pub trait Special_Form {
-}
-
-pub trait Predicate {
-}
-
-pub trait Separator {
-}
-
-pub trait Mapping {
-}
-
-pub trait Builtin {
-}
-
-pub trait Identifier {
-}
-
-pub trait Literal {
-}
-
 #[derive(debug)]
 pub enum Token {
     // special form
@@ -29,11 +8,7 @@ pub enum Token {
     Yield, // for control flow
     Let,
     Quote,
-    // Identifier
-    Identifier(str),
-    // Literals
-    Decimal(str),
-    String_Lit(str),
+    Literal(str),
     // Builtins
         // Predicate
     Equals,
@@ -52,6 +27,8 @@ pub enum Token {
     LBrace,
     RBrace,
     Space,
+    Newline,
+    Tab,
     Dot,
     Comment,
     DQuote,
@@ -72,64 +49,56 @@ enum Symbol {
     Unmatched(char),
 }
 
-enum Lexeme {
-    Matched(Token),
-    Unmatched(str),
-}
-
-fn match_delim(lexeme: char) - Option<Symbol> {
+fn match_delim(lexeme: char) -> Symbol {
     match lexeme {
-        ' ' => None,
-        '\n' => None,
-        '(' => Symbol::Matched(LParen),
-        ')' => Symbol::Matched(RParen),
-        '[' => Symbol::Matched(LBrace),
-        ']' => Symbol::Matched(RBrace),
-        ';' => Symbol::Matched(Comment),
-        '.' => Symbol::Matched(Dot),
-        '\"' => Symbol::Matched(DQuote),
+        ' ' => Symbol::Matched(Token::Space),
+        '\n' => Symbol::Matched(Token::Newline),
+        '\t' => Symbol::Matched(Token::Tab),
+        '(' => Symbol::Matched(Token::LParen),
+        ')' => Symbol::Matched(Token::RParen),
+        '[' => Symbol::Matched(Token::LBrace),
+        ']' => Symbol::Matched(Token::RBrace),
+        ';' => Symbol::Matched(Token::Comment),
+        '.' => Symbol::Matched(Token::Dot),
+        '\"' => Symbol::Matched(Token::DQuote),
         _ => Symbol::Unmatched(_),
     }
 }
 
-fn match_tok(lexeme: str) -> Lexeme {
+fn match_tok(lexeme: str) -> Token {
     match lexeme {
-         // special form
-        "def" => Lexeme::Matched(Define), // Bind symbol to value
-        "fn" => Lexeme::Matched(Function), // Special Form: Instantiates or references callable code
-        "tab" => Lexeme::Matched(Table), // Instantiates or references an aggregate data type
-        "case" => Lexeme::Matched(Case), // for control flow
-        "yield" => Lexeme::Matched(Yield), // for control flow
-        "let" => Lexeme::Matched(Let),
-        "quote" => Lexeme::Matched(Quote),
+         // special forms
+        "def" => Token::Define, // Bind symbol to value
+        "fn" => Token::Function, // Special Form: Instantiates or references callable code
+        "tab" => Token::Table, // Instantiates or references an aggregate data type
+        "case" => Token::Case, // for control flow
+        "yield" => Token::Yield, // for control flow
+        "let" => Token::Let,
+        "quote" => Token::Quote,
         // Builtins
             // Predicate
-        "=" => Lexeme::Matched(Equals),
-        "not" => Lexeme::Matched(Not),
-        "<" => Lexeme::Matched(LT),
-        ">" => Lexeme::Matched(GT),
-        "<=" => Lexeme::Matched(LEQ),
-        ">=" => Lexeme::Matched(GEQ),
-        "and" => Lexeme::Matched(And),
-        "or" => Lexeme::Matched(Or),
-        "is" => Lexeme::Matched(Is),
-        "in" => Lexeme::Matched(In), // for tables
+        "=" => Token::Equals,
+        "not" => Token::Not,
+        "<" => Token::LT,
+        ">" => Token::GT,
+        "<=" => Token::LEQ,
+        ">=" => Token::GEQ,
+        "and" => Token::And,
+        "or" => Token::Or,
+        "is" => Token::Is,
+        "in" => Token::In, // for tables
             // Mappings
-        "+" => Lexeme::Matched(Plus),
-        "-" => Lexeme::Matched(Minus),
-        "*" => Lexeme::Matched(Mul),
-        "/" => Lexeme::Matched(Div),
-        "%" => Lexeme::Matched(Mod),
-        "^" => Lexeme::Matched(Exp),
-        "first" => Lexeme::Matched(First),
-        "rest" => Lexeme::Matched(Rest),
-        "find" => Lexeme::Matched(Find), // for tables
-        _ => Lexeme::Unmatched(_),
+        "+" => Token::Plus,
+        "-" => Token::Minus,
+        "*" => Token::Mul,
+        "/" => Token::Div,
+        "%" => Token::Mod,
+        "^" => Token::Exp,
+        "first" => Token::First,
+        "rest" => Token::Rest,
+        "find" => Token::Find, // for tables
+        _ => Token::Literal(_),
     }
-}
-
-fn match_lit(lexeme: str) -> Result<Lexeme> {
-    match lexeme
 }
 
 fn fail(msg: str) {
@@ -144,28 +113,25 @@ pub fn lex(input: String) -> Vec<Token> {
     let mut lexeme = String::new();
     let cursor = input.chars();
     loop {
-        current = cursor.next();
-        if current == None {
-            match match_tok(lexeme) {
-                Lexeme::Matched(tok) => tokens.push(tok),
-                Lexeme::Unmatched(_) => fail(_),
-            }
-            break;
-        }
-        match match_delim(current) {
-            Some(symbol) => match symbol {
-                Symbol::Matched(tok) => tokens.push(tok),
-                Symbol::Unmatched(_) => lexeme.push(_),
+        let residual = match cursor.next() {
+            Some(symbol) => {
+                match match_delim(symbol) {
+                    Symbol::Matched(tok) => {
+                        tokens.push(match_tok(lexeme));
+                        tokens.push(tok);
+                        None
+                    },
+                    Symbol::Unmatched(_) => Some(String::new(_)),
+                }
             },
-            None => (), // likely whitespace
+            // we are at the end of the input
+            None => {
+                match_tok(lexeme);
+                break;
+            },
         }
-        match match_tok(lexeme) {
-            Lexeme::Matched(tok) => tokens.push(tok),
-            Lexeme::Unmatched(_) => 
-                match match_lit(_) {
-                    Ok(tok) => tokens.push(tok),
-                    Err(_) => fail(_),
-                },
+        if residual != None {
+            lexeme.push(residual);
         }
     }
 }
