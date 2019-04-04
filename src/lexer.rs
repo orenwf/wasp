@@ -1,4 +1,5 @@
-#[derive(debug)]
+#[derive(Debug)]
+#[derive(PartialEq)]
 pub enum Token {
     // special form
     Define, // Bind symbol to value
@@ -8,7 +9,7 @@ pub enum Token {
     Yield, // for control flow
     Let,
     Quote,
-    Literal(str),
+    Literal(String),
     // Builtins
         // Predicate
     Equals,
@@ -61,12 +62,12 @@ fn match_delim(lexeme: char) -> Symbol {
         ';' => Symbol::Matched(Token::Comment),
         '.' => Symbol::Matched(Token::Dot),
         '\"' => Symbol::Matched(Token::DQuote),
-        _ => Symbol::Unmatched(_),
+        _ => Symbol::Unmatched(lexeme),
     }
 }
 
-fn match_tok(lexeme: str) -> Token {
-    match lexeme {
+fn match_tok(lexeme: String) -> Token {
+    match lexeme.as_str() {
          // special forms
         "def" => Token::Define, // Bind symbol to value
         "fn" => Token::Function, // Special Form: Instantiates or references callable code
@@ -97,40 +98,37 @@ fn match_tok(lexeme: str) -> Token {
         "first" => Token::First,
         "rest" => Token::Rest,
         "find" => Token::Find, // for tables
-        _ => Token::Literal(_),
+        _ => Token::Literal(lexeme),
     }
-}
-
-fn fail(msg: str) {
-    panic!(
-        "The following code did not match any syntax: {:?}",
-        msg
-        )
 }
 
 pub fn lex(input: String) -> Vec<Token> {
     let mut tokens: Vec<Token> = vec!();
     let mut lexeme = String::new();
-    let cursor = input.chars();
+    let mut cursor = input.chars();
     loop {
-        let residual = match cursor.next() {
+        if let Some(residual) = match cursor.next() {
             Some(symbol) => {
                 match match_delim(symbol) {
                     Symbol::Matched(tok) => {
-                        tokens.push(match_tok(lexeme));
+                        if !lexeme.is_empty() {
+                            tokens.push(match_tok(lexeme));
+                            lexeme = String::new();
+                        }
                         tokens.push(tok);
                         None
                     },
-                    Symbol::Unmatched(_) => Some(String::new(_)),
+                    Symbol::Unmatched(unmatched) => Some(unmatched),
                 }
             },
             // we are at the end of the input
             None => {
-                match_tok(lexeme);
-                break;
+                if !lexeme.is_empty() {
+                    tokens.push(match_tok(lexeme));
+                }
+                return tokens;
             },
-        }
-        if residual != None {
+        } /*then*/ {
             lexeme.push(residual);
         }
     }
